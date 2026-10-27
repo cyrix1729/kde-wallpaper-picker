@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Wallpaper Picker
+Comment=Pick a wallpaper from a thumbnail grid
+Exec=@HOME@/.local/bin/wallpaper-picker
+Icon=preferences-desktop-wallpaper
+Categories=Settings;DesktopSettings;

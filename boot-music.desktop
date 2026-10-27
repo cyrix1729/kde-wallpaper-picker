@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Boot Music
+Comment=Ambient music at login
+Exec=@HOME@/.local/bin/boot-music.sh
+Icon=audio-x-generic
+X-KDE-autostart-phase=2

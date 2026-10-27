@@ -1,0 +1,238 @@
+#!/usr/bin/python3 -I
+"""Cover-flow wallpaper picker for KDE Plasma (UI in ~/.local/share/wallpaper-picker/picker.qml).
+
+Lists images in ~/Pictures/Wallpapers and applies the chosen one to every screen,
+along with a matching accent colour and music (see ~/.config/wallpaper-picker/themes.json).
+
+The music follows the wallpaper's mood, read from its colours (warm -> lofi, neon night -> city, ...).
+`wallpaper-picker --music-source` prints the music source for the current wallpaper;
+`wallpaper-picker --moods` lists the mood picked for every wallpaper.
+"""
+import colorsys
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+from PySide6.QtCore import QObject, Property, Qt, QUrl, Slot
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QImage
+from PySide6.QtQml import QQmlApplicationEngine
+
+FOLDER = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 and not sys.argv[1].startswith("-") \
+    else Path.home() / "Pictures/Wallpapers"
+QML = Path.home() / ".local/share/wallpaper-picker/picker.qml"
+APPLETSRC = Path.home() / ".config/plasma-org.kde.plasma.desktop-appletsrc"
+THEMES = Path.home() / ".config/wallpaper-picker/themes.json"
+MUSIC_DIR = Path.home() / "Music/Wallpapers"
+MOOD_DIR = Path.home() / "Music/Moods"
+MUSIC_STATE = Path.home() / ".cache/wallpaper-picker/music-source"
+BOOT_MUSIC = Path.home() / ".local/bin/boot-music.sh"
+AUDIO_EXT = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".wav"}
+SOMA = "https://ice1.somafm.com/%s-128-mp3"
+DEFAULT_THEMES = {
+    "_comment": "Per-wallpaper overrides keyed by file name: accent (\"auto\" or \"#e9643a\"), "
+                "mood (one of \"moods\"), or music (stream URL, file or folder). Music order: that "
+                "wallpaper's music, ~/Music/Wallpapers/<name>/, ~/Music/Moods/<mood>/, then the mood's stream.",
+    "default": {"accent": "auto"},
+    "moods": {
+        "warm": SOMA % "fluid",           # orange/red/yellow -> lofi / instrumental hip-hop
+        "city": SOMA % "vaporwaves",      # dark with neon or bright lights -> night-city synth
+        "space": SOMA % "deepspaceone",   # dark blue/purple -> space ambient
+        "dark": SOMA % "darkzone",        # dark otherwise -> dark ambient
+        "cool": SOMA % "groovesalad",     # blue/cyan -> chill downtempo
+        "nature": SOMA % "gsclassic",     # green -> classic chill
+        "dreamy": SOMA % "lush",          # pastel or pink -> soft vocals
+        "muted": SOMA % "dronezone",      # grey / colourless -> drone
+    },
+}
+
+
+def current_wallpaper():
+    """Image of the first desktop using the plain image wallpaper plugin."""
+    try:
+        group = ""
+        for line in APPLETSRC.read_text().splitlines():
+            if line.startswith("["):
+                group = line
+            elif line.startswith("Image=") and group.endswith("[Wallpaper][org.kde.image][General]"):
+                out = line[len("Image="):]
+                return QUrl(out).toLocalFile() if out.startswith("file:") else out
+    except OSError:
+        pass
+    return ""
+
+
+class Backend(QObject):
+    @Property(str, constant=True)
+    def folderPath(self):
+        return str(FOLDER)
+
+    @Property(QUrl, constant=True)
+    def folderUrl(self):
+        return QUrl.fromLocalFile(str(FOLDER))
+
+    @Property(str, constant=True)
+    def currentWallpaper(self):
+        return current_wallpaper()
+
+    @Slot(str)
+    def apply(self, path):
+        subprocess.Popen(["plasma-apply-wallpaperimage", path],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+        set_lockscreen(path)
+        theme = theme_for(path)
+        set_accent(theme.get("accent", "auto"), path)
+        set_music(music_source(path, theme))
+
+
+def load_themes():
+    if not THEMES.exists():
+        THEMES.parent.mkdir(parents=True, exist_ok=True)
+        THEMES.write_text(json.dumps(DEFAULT_THEMES, indent=2) + "\n")
+    try:
+        return json.loads(THEMES.read_text())
+    except (OSError, ValueError):
+        return DEFAULT_THEMES
+
+
+def theme_for(path):
+    themes = load_themes()
+    return {**DEFAULT_THEMES["default"], **themes.get("default", {}), **themes.get(Path(path).name, {})}
+
+
+def wallpaper_pixels(path):
+    """HSV (0..1, hue -1 when grey) of a 64x64 thumbnail, or [] if the image can't be read."""
+    img = QImage(path)
+    if img.isNull():
+        return []
+    img = img.scaled(64, 64, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    return [QColor(img.pixel(x, y)).getHsvF()[:3] for y in range(img.height()) for x in range(img.width())]
+
+
+def dominant_colour(pixels):
+    """(hue, sat, value) of the most prominent vivid colour, or None if there isn't one."""
+    buckets = {}
+    for h, s, v in pixels:
+        if h < 0 or s < 0.25 or v < 0.25:
+            continue
+        b = buckets.setdefault(int(h * 24) % 24, [0.0, 0.0, 0.0, 0.0])
+        w = s * v
+        b[0] += w; b[1] += h * w; b[2] += s * w; b[3] += v * w
+    if not buckets:
+        return None
+    weight, h, s, v = max(buckets.values())
+    return h / weight, s / weight, v / weight
+
+
+def wallpaper_mood(path):
+    pixels = wallpaper_pixels(path)
+    if not pixels:
+        return "muted"
+    n = len(pixels)
+    brightness = sum(v for _, _, v in pixels) / n
+    saturation = sum(s for _, s, _ in pixels) / n
+    neon = sum(1 for h, s, v in pixels if s > 0.55 and v > 0.55 and (0.45 < h < 0.56 or 0.72 < h < 0.95)) / n
+    lights = sum(1 for _, _, v in pixels if v > 0.8) / n
+    dominant = dominant_colour(pixels)
+    hue = dominant[0] * 360 if dominant else None
+    if brightness < 0.35:
+        if neon > 0.03 or lights > 0.06:
+            return "city"
+        if hue is not None and 60 <= hue < 170:
+            return "nature"  # night forest
+        return "space" if hue is not None and 190 <= hue < 340 else "dark"
+    if saturation < 0.15 or hue is None:
+        return "muted"
+    if brightness > 0.65 and saturation < 0.35 or 290 <= hue < 340:
+        return "dreamy"
+    if hue < 50 or hue >= 340:
+        return "warm"
+    return "nature" if hue < 160 else "cool"
+
+
+def wallpaper_accent(path):
+    """Most prominent vivid colour in the image, nudged to be readable as an accent."""
+    dominant = dominant_colour(wallpaper_pixels(path))
+    if not dominant:
+        return None
+    h, s, v = dominant
+    r, g, b = colorsys.hsv_to_rgb(h, min(max(s, 0.55), 0.85), min(max(v, 0.75), 0.95))
+    return "#%02x%02x%02x" % (round(r * 255), round(g * 255), round(b * 255))
+
+
+def set_accent(accent, path):
+    colour = wallpaper_accent(path) if accent == "auto" else accent
+    if colour:
+        subprocess.run(["plasma-apply-colorscheme", "--accent-color", colour],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def has_audio(folder):
+    return folder.is_dir() and any(f.suffix.lower() in AUDIO_EXT for f in folder.iterdir())
+
+
+def music_source(path, theme=None):
+    theme = theme or theme_for(path)
+    if "music" in theme:
+        return os.path.expanduser(theme["music"])
+    if has_audio(MUSIC_DIR / Path(path).stem):
+        return str(MUSIC_DIR / Path(path).stem)
+    mood = theme.get("mood") or wallpaper_mood(path)
+    if has_audio(MOOD_DIR / mood):
+        return str(MOOD_DIR / mood)
+    moods = {**DEFAULT_THEMES["moods"], **load_themes().get("moods", {})}
+    return os.path.expanduser(moods.get(mood, moods["muted"]))
+
+
+def set_music(source):
+    """Restart the music only if it changed and music is already playing."""
+    try:
+        if MUSIC_STATE.read_text() == source:
+            return
+    except OSError:
+        pass
+    if subprocess.run(["pkill", "-f", "^/usr/bin/vlc -I dummy --control dbus"]).returncode != 0:
+        return  # music was stopped by the user; leave it off
+    subprocess.Popen([str(BOOT_MUSIC), "--now"], stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, start_new_session=True)
+
+
+def set_lockscreen(path):
+    """Use the same image on the lock screen."""
+    subprocess.run(["kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Greeter",
+                    "--group", "Wallpaper", "--group", "org.kde.image", "--group", "General",
+                    "--key", "Image", QUrl.fromLocalFile(path).toString()],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def main():
+    if "--music-source" in sys.argv:
+        print(music_source(current_wallpaper()))
+        return
+    if "--moods" in sys.argv:
+        for f in sorted(FOLDER.iterdir()):
+            if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif", ".jxl"}:
+                print(f"{wallpaper_mood(str(f)):8} {f.name}")
+        return
+    FOLDER.mkdir(parents=True, exist_ok=True)
+    app = QGuiApplication(sys.argv)
+    app.setDesktopFileName("wallpaper-picker")
+    engine = QQmlApplicationEngine()
+    backend = Backend()
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.load(QUrl.fromLocalFile(str(QML)))
+    if not engine.rootObjects():
+        sys.exit(1)
+    window = engine.rootObjects()[0]
+    screen = QGuiApplication.screenAt(QCursor.pos()) or app.primaryScreen()
+    window.setScreen(screen)
+    window.setGeometry(screen.geometry())
+    window.showFullScreen()
+    window.requestActivate()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
