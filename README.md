@@ -1,5 +1,7 @@
 # Wallpaper Picker and music changer
 
+![The picker: mood and station under each wallpaper, Tab switching colour/smart mode, M overriding a mood](docs/demo.gif)
+
 A full-screen cover-flow wallpaper picker for KDE Plasma plays music to match wallpaper, based on color profile of image. Applying a wallpaper also sets:
 
 - the **lock screen** to the same image
