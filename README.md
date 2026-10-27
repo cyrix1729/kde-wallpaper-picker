@@ -3,7 +3,7 @@
 **Pick a wallpaper and your whole desktop follows: accent colour, lock screen, and music that fits the picture.**
 Calm ambient radio picked to fit what's in the image: soft and warm for an anime street, deep space drones for a galaxy, moody post-rock for a neon city.
 
-![The picker: mood and station under each wallpaper, Tab switching colour/smart mode, M overriding a mood](docs/demo.gif)
+![Switching wallpapers on a real KDE Plasma desktop: the picker shows each wallpaper's mood and station, and the accent colour and music follow](docs/desktop.gif)
 
 A full-screen cover-flow wallpaper picker for KDE Plasma that plays music to match your wallpaper.
 
@@ -46,6 +46,8 @@ Under each wallpaper you'll see its mood and the music it will play. In the pick
 - **Tab** switches music mode between **colour** and **smart** (shown bottom right).
 - **M** changes the selected wallpaper's mood if the guess is wrong. Keep pressing to cycle
   through the moods and back to automatic. It's saved for you.
+
+![The picker: mood and station under each wallpaper, Tab switching colour/smart mode, M overriding a mood](docs/demo.gif)
 
 To add wallpapers, just save images (jpg, png, webp, gif, bmp, avif, jxl) into `~/Pictures/Wallpapers`,
 or set `"folder"` in `themes.json` (see below) to use another folder. When the picker opens it
