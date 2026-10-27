@@ -23,8 +23,9 @@ Needs Plasma 6, PySide6 (`sudo dnf install python3-pyside6`) and VLC (`sudo dnf 
 
 Open it with **Meta+Shift+W**, or launch "Wallpaper Picker" from the app menu, or run `wallpaper-picker` in a terminal.
 
-To add wallpapers, drop images (jpg, png, webp, gif, bmp, avif, jxl) into `~/Pictures/Wallpapers`.
-They're picked up the next time the picker opens. Nothing else needs to run.
+To add wallpapers, drop images (jpg, png, webp, gif, bmp, avif, jxl) into `~/Pictures/Wallpapers`,
+or set `"folder"` in `themes.json` (see below) to use another folder. They're picked up the next
+time the picker opens. Nothing else needs to run.
 
 To use a different folder once: `wallpaper-picker ~/some/other/folder`.
 
@@ -89,6 +90,7 @@ The file is created with the defaults on first run. Entries are keyed by wallpap
 
 ```json
 {
+  "folder": "~/Desktop/wallpapers",
   "default": { "accent": "auto" },
   "moods": {
     "warm": "https://ice1.somafm.com/fluid-128-mp3",
@@ -100,7 +102,8 @@ The file is created with the defaults on first run. Entries are keyed by wallpap
 }
 ```
 
-- `accent`: `"auto"` (from the image) or any colour like `"#e9643a"`
+- `folder`: where wallpapers are listed from (default `~/Pictures/Wallpapers`)
+- `accent`: `"auto" (from the image) or any colour like `"#e9643a"`
 - `mood`: force one of the moods above instead of guessing
 - `music`: a stream URL, an audio file, or a folder
 - `moods`: change which station a mood plays (other SomaFM stations are listed at somafm.com)
@@ -118,7 +121,7 @@ Changes take effect the next time you apply a wallpaper.
 | `~/.config/autostart/` (Boot Music entry)              | Runs `boot-music.sh` at login                  |
 | `~/.config/wallpaper-picker/themes.json`               | Your overrides                                 |
 | `~/.cache/wallpaper-picker/music-source`               | What's playing now, so it isn't restarted      |
-| `~/Pictures/Wallpapers/`                               | Wallpaper images                               |
+| `~/Pictures/Wallpapers/` (or `folder`)                 | Wallpaper images                               |
 | `~/Music/Moods/<mood>/`, `~/Music/Wallpapers/<name>/`  | Optional local music                           |
 
 The installed paths are symlinks into this repo, except the two `.desktop` files, which `install.sh`

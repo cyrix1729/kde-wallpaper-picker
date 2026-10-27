@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -I
 """Cover-flow wallpaper picker for KDE Plasma (UI in ~/.local/share/wallpaper-picker/picker.qml).
 
-Lists images in ~/Pictures/Wallpapers and applies the chosen one to every screen,
+Lists images in the configured folder (default ~/Pictures/Wallpapers) and applies the chosen one to every screen,
 along with a matching accent colour and music (see ~/.config/wallpaper-picker/themes.json).
 
 The music follows the wallpaper's mood, read from its colours (warm -> lofi, neon night -> city, ...).
@@ -19,8 +19,6 @@ from PySide6.QtCore import QObject, Property, Qt, QUrl, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 
-FOLDER = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 and not sys.argv[1].startswith("-") \
-    else Path.home() / "Pictures/Wallpapers"
 QML = Path.home() / ".local/share/wallpaper-picker/picker.qml"
 APPLETSRC = Path.home() / ".config/plasma-org.kde.plasma.desktop-appletsrc"
 THEMES = Path.home() / ".config/wallpaper-picker/themes.json"
@@ -31,7 +29,8 @@ BOOT_MUSIC = Path.home() / ".local/bin/boot-music.sh"
 AUDIO_EXT = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".wav"}
 SOMA = "https://ice1.somafm.com/%s-128-mp3"
 DEFAULT_THEMES = {
-    "_comment": "Per-wallpaper overrides keyed by file name: accent (\"auto\" or \"#e9643a\"), "
+    "folder": "~/Pictures/Wallpapers",
+    "_comment": "folder: where wallpapers are listed from. Per-wallpaper overrides keyed by file name: accent (\"auto\" or \"#e9643a\"), "
                 "mood (one of \"moods\"), or music (stream URL, file or folder). Music order: that "
                 "wallpaper's music, ~/Music/Wallpapers/<name>/, ~/Music/Moods/<mood>/, then the mood's stream.",
     "default": {"accent": "auto"},
@@ -97,6 +96,10 @@ def load_themes():
         return DEFAULT_THEMES
 
 
+FOLDER = Path(sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-")
+              else load_themes().get("folder", DEFAULT_THEMES["folder"])).expanduser()
+
+
 def theme_for(path):
     themes = load_themes()
     return {**DEFAULT_THEMES["default"], **themes.get("default", {}), **themes.get(Path(path).name, {})}
@@ -135,8 +138,11 @@ def wallpaper_mood(path):
     saturation = sum(s for _, s, _ in pixels) / n
     neon = sum(1 for h, s, v in pixels if s > 0.55 and v > 0.55 and (0.45 < h < 0.56 or 0.72 < h < 0.95)) / n
     lights = sum(1 for _, _, v in pixels if v > 0.8) / n
+    shadows = sum(1 for _, _, v in pixels if v < 0.25) / n
     dominant = dominant_colour(pixels)
     hue = dominant[0] * 360 if dominant else None
+    if shadows > 0.3 and lights > 0.05 and saturation >= 0.15:
+        return "city"  # lots of black broken up by bright lights
     if brightness < 0.35:
         if neon > 0.03 or lights > 0.06:
             return "city"
