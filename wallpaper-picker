@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Qt, QUrl, Slot
-from PySide6.QtGui import QColor, QCursor, QGuiApplication, QImage
+from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 
 FOLDER = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 and not sys.argv[1].startswith("-") \
@@ -199,6 +199,18 @@ def set_music(source):
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
+def active_screen(app):
+    """The screen KWin considers active (Wayland hides the cursor position from apps)."""
+    try:
+        out = subprocess.run(["gdbus", "call", "--session", "-d", "org.kde.KWin", "-o", "/KWin",
+                              "-m", "org.kde.KWin.activeOutputName"],
+                             capture_output=True, text=True, timeout=2).stdout
+        name = out.strip().strip("(),'")
+    except (OSError, subprocess.SubprocessError):
+        name = ""
+    return next((s for s in app.screens() if s.name() == name), app.primaryScreen())
+
+
 def set_lockscreen(path):
     """Use the same image on the lock screen."""
     subprocess.run(["kwriteconfig6", "--file", "kscreenlockerrc", "--group", "Greeter",
@@ -226,7 +238,7 @@ def main():
     if not engine.rootObjects():
         sys.exit(1)
     window = engine.rootObjects()[0]
-    screen = QGuiApplication.screenAt(QCursor.pos()) or app.primaryScreen()
+    screen = active_screen(app)
     window.setScreen(screen)
     window.setGeometry(screen.geometry())
     window.showFullScreen()
