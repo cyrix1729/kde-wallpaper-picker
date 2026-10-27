@@ -1,7 +1,7 @@
 # Wallpaper Picker and music changer
 
 **Pick a wallpaper and your whole desktop follows: accent colour, lock screen, and music that fits the picture.**
-Lofi for an anime street, bossa nova for a tropical beach, synthwave for a neon city.
+Calm ambient radio picked to fit what's in the image: soft and warm for an anime street, deep space drones for a galaxy, moody post-rock for a neon city.
 
 ![The picker: mood and station under each wallpaper, Tab switching colour/smart mode, M overriding a mood](docs/demo.gif)
 
@@ -11,7 +11,8 @@ A full-screen cover-flow wallpaper picker for KDE Plasma that plays music to mat
 
 - **Cover-flow picker** on a keyboard shortcut, opening on your main monitor
 - **One click sets everything**: wallpaper on every screen, the lock screen, and an accent colour taken from the image
-- **Music that matches the mood**, from free [SomaFM](https://somafm.com) internet radio or your own music folders
+- **Slow ambient music that matches the mood**, from free internet radio ([SomaFM](https://somafm.com) and
+  [stereoscenic](https://stereoscenic.com)) or your own music folders
 - **Two ways to read the mood**:
   - **Colour mode**: instant, from the image's colours
   - **Smart mode**: [CLIP](https://github.com/openai/CLIP) image recognition, running offline on your CPU, that knows a beach from a lake
@@ -76,20 +77,20 @@ This is the same in both music modes.
 
 Each wallpaper gets one of these moods, and each mood has its own music:
 
-| Mood     | Colour mode: looks like             | Smart mode: pictures like            | Station (SomaFM)     |
-|----------|-------------------------------------|--------------------------------------|----------------------|
-| `warm`   | orange / red / gold                 | cozy anime scenes, autumn, sunsets   | Fluid (lofi-ish)     |
-| `city`   | dark with neon or bright lights     | cities at night, skylines, cyberpunk | Vaporwaves           |
+| Mood     | Colour mode: looks like             | Smart mode: pictures like            | Station (all slow ambient) |
+|----------|-------------------------------------|--------------------------------------|----------------------------|
+| `warm`   | orange / red / gold                 | cozy anime scenes, autumn, sunsets   | Ambient Modern       |
+| `city`   | dark with neon or bright lights     | cities at night, skylines, cyberpunk | n5MD Radio           |
 | `space`  | dark blue / purple / magenta        | space, galaxies, starry skies        | Deep Space One       |
-| `nature` | green, including dark forests       | forests, mountains, meadows          | Groove Salad Classic |
+| `nature` | green, including dark forests       | forests, mountains, meadows          | Ambient Sleeping Pill |
 | `dark`   | dark, any other colour              | gloomy, moody, gothic                | Dark Zone            |
-| `cool`   | blue / cyan                         | calm ocean, lakes, blue sky          | Groove Salad         |
-| `dreamy` | pastel or pink                      | pastel skies, pink clouds            | Lush                 |
+| `cool`   | blue / cyan                         | calm ocean, lakes, blue sky          | Drone Zone           |
+| `dreamy` | pastel or pink                      | pastel skies, pink clouds            | Ambient Sleeping Pill |
 | `muted`  | grey / colourless                   | black and white, grey architecture   | Drone Zone           |
-| `tropical` | (smart only)                      | tropical beaches, palm trees, islands | Bossa Beyond        |
-| `retro`  | (smart only)                        | vintage photos, 60s scenes, old film | Secret Agent         |
+| `tropical` | (smart only)                      | tropical beaches, palm trees, islands | Ambient Sleeping Pill |
+| `retro`  | (smart only)                        | vintage photos, 60s scenes, old film | Mission Control      |
 | `abstract` | (smart only)                      | abstract shapes, geometric art       | Synphaera            |
-| `countryside` | (smart only)                   | fields, cabins, desert roads, villages | Folk Forward       |
+| `countryside` | (smart only)                   | fields, cabins, desert roads, villages | Ambient Modern       |
 
 Colour mode only knows the first eight; smart mode can tell all twelve apart.
 
@@ -100,7 +101,7 @@ There are two ways to pick the mood:
 - **Smart mode** uses [CLIP](https://openai.com/research/clip), an image-recognition model
   that runs offline on your CPU. Each mood has a few written descriptions (the "pictures like"
   column, editable in `themes.json`). CLIP compares the image with every description and the
-  closest mood wins, so a blue-tinted anime street still comes out as lofi. If it's less than
+  closest mood wins, so a blue-tinted anime street still comes out as warm. If it's less than
   50% sure, it uses the colour mood instead, shown as e.g. `cool (colour)` in the picker.
 
 Results are cached in `~/.cache/wallpaper-picker/`. Each image is analysed once; editing the
@@ -133,14 +134,14 @@ The file is created with the defaults on first run. Entries are keyed by wallpap
   "default": { "accent": "auto" },
   "moods": {
     "warm": {
-      "music": "https://ice1.somafm.com/fluid-128-mp3",
+      "music": "https://radio.stereoscenic.com/mod-h",
       "prompts": ["a cozy anime scene", "autumn leaves", "a warm golden sunset"]
     },
     "...": "..."
   },
   "Autumn.jpg":  { "accent": "#e9643a" },
   "Kokkini.png": { "mood": "city" },
-  "Path.jpg":    { "music": "https://ice1.somafm.com/groovesalad-128-mp3" }
+  "Path.jpg":    { "music": "https://ice1.somafm.com/dronezone-128-mp3" }
 }
 ```
 
@@ -148,7 +149,7 @@ The file is created with the defaults on first run. Entries are keyed by wallpap
 - `mode`: `"colour"` or `"smart"` (Tab in the picker changes this)
 - `moods`: each mood's `music` and, for smart mode, its `prompts`: short descriptions of
   images that fit it. Add a description when something lands in the wrong mood, or add a whole
-  new mood with its own prompts and station. Other SomaFM stations are listed at somafm.com.
+  new mood with its own prompts and station. Every station is slow ambient by default; SomaFM lists more (some with beats) at somafm.com.
 - per wallpaper:
   - `accent`: `"auto"` (from the image) or any colour like `"#e9643a"`
   - `mood`: force a mood instead of guessing (M in the picker sets this)

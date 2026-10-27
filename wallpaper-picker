@@ -44,7 +44,12 @@ SOMA = "https://ice1.somafm.com/%s-128-mp3"
 SOMA_NAMES = {"fluid": "Fluid", "vaporwaves": "Vaporwaves", "deepspaceone": "Deep Space One",
               "darkzone": "Dark Zone", "groovesalad": "Groove Salad", "gsclassic": "Groove Salad Classic",
               "lush": "Lush", "dronezone": "Drone Zone", "bossa": "Bossa Beyond",
-              "secretagent": "Secret Agent", "synphaera": "Synphaera", "folkfwd": "Folk Forward"}
+              "secretagent": "Secret Agent", "synphaera": "Synphaera", "folkfwd": "Folk Forward",
+              "n5md": "n5MD Radio", "missioncontrol": "Mission Control"}
+# Slow, beat-free ambient streams from stereoscenic.com.
+SLEEPING_PILL = "https://radio.stereoscenic.com/asp-h"
+AMBIENT_MODERN = "https://radio.stereoscenic.com/mod-h"
+STATION_NAMES = {SLEEPING_PILL: "Ambient Sleeping Pill", AMBIENT_MODERN: "Ambient Modern"}
 DEFAULT_THEMES = {
     "folder": "~/Pictures/Wallpapers",
     "mode": "colour",
@@ -55,36 +60,36 @@ DEFAULT_THEMES = {
                 "~/Music/Wallpapers/<name>/, ~/Music/Moods/<mood>/, then the mood's music.",
     "default": {"accent": "auto"},
     "moods": {
-        "warm": {"music": SOMA % "fluid",  # lofi / instrumental hip-hop
+        "warm": {"music": AMBIENT_MODERN,  # gentle modern ambient, piano and strings
                  "prompts": ["a cozy anime scene", "a lofi illustration of a quiet street", "autumn leaves",
                              "a warm golden sunset", "a cozy cafe"]},
-        "city": {"music": SOMA % "vaporwaves",
+        "city": {"music": SOMA % "n5md",  # moody ambient and post-rock
                  "prompts": ["a city at night with neon lights", "a cyberpunk city",
                              "skyscrapers lit up at night", "a city skyline"]},
-        "space": {"music": SOMA % "deepspaceone",
+        "space": {"music": SOMA % "deepspaceone",  # deep space ambient
                   "prompts": ["outer space", "a galaxy full of stars", "the milky way", "a starry night sky",
                               "a planet in space", "a nebula"]},
-        "dark": {"music": SOMA % "darkzone",
+        "dark": {"music": SOMA % "darkzone",  # dark ambient
                  "prompts": ["a dark and moody scene", "a gloomy foggy landscape", "a dark gothic scene"]},
-        "cool": {"music": SOMA % "groovesalad",
+        "cool": {"music": SOMA % "dronezone",  # atmospheric drones
                  "prompts": ["the calm ocean", "a peaceful lake", "a clear blue sky", "waves on a rocky coast"]},
         # The moods below only come from smart mode; colour mode can't tell them apart.
-        "tropical": {"music": SOMA % "bossa",  # bossa nova
+        "tropical": {"music": SLEEPING_PILL,  # slow, beat-free ambient
                      "prompts": ["a tropical beach with turquoise water", "palm trees on a sunny beach",
                                  "a tropical island", "white sand and clear shallow sea"]},
-        "retro": {"music": SOMA % "secretagent",  # 60s spy lounge
+        "retro": {"music": SOMA % "missioncontrol",  # ambient over vintage NASA mission audio
                   "prompts": ["a vintage photograph", "a retro 1960s scene", "an old film still",
                               "a classic car on an old street"]},
         "abstract": {"music": SOMA % "synphaera",  # ambient electronic
                      "prompts": ["abstract colorful shapes", "geometric abstract art", "a smooth abstract wave pattern"]},
-        "countryside": {"music": SOMA % "folkfwd",  # indie folk
+        "countryside": {"music": AMBIENT_MODERN,  # gentle modern ambient, piano and strings
                         "prompts": ["farmland and rolling fields", "a wooden cabin in the countryside",
                                     "an empty desert road", "a quiet country village"]},
-        "nature": {"music": SOMA % "gsclassic",
+        "nature": {"music": SLEEPING_PILL,  # slow, beat-free ambient
                    "prompts": ["a green forest", "snowy mountains", "a lush green meadow", "a waterfall in the wild"]},
-        "dreamy": {"music": SOMA % "lush",
+        "dreamy": {"music": SLEEPING_PILL,  # slow, beat-free ambient
                    "prompts": ["soft pastel colors", "a dreamy sky with pink clouds", "a pastel sunset over hills"]},
-        "muted": {"music": SOMA % "dronezone",
+        "muted": {"music": SOMA % "dronezone",  # atmospheric drones
                   "prompts": ["a black and white photo", "minimalist grey architecture", "a foggy monochrome scene"]},
     },
 }
@@ -339,6 +344,8 @@ def mood_for(path, theme=None, cache=None, allow_analysis=True):
 
 
 def station_name(source):
+    if source in STATION_NAMES:
+        return STATION_NAMES[source]
     match = re.search(r"somafm\.com/([a-z0-9]+?)-\d+-mp3", source)
     if match:
         return SOMA_NAMES.get(match.group(1), match.group(1))
