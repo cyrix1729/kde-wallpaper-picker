@@ -4,18 +4,24 @@
 Lists images in the configured folder (default ~/Pictures/Wallpapers) and applies the chosen one to every screen,
 along with a matching accent colour and music (see ~/.config/wallpaper-picker/themes.json).
 
-The music follows the wallpaper's mood, read from its colours (warm -> lofi, neon night -> city, ...).
+The music follows the wallpaper's mood. In "colour" mode the mood comes from the image's colours
+(warm -> lofi, neon night -> city, ...); in "smart" mode CLIP matches the image against each mood's
+descriptions (smart/classify.py, installed with install.sh --smart), falling back to colours when unsure.
+
+`wallpaper-picker --moods` lists the mood picked for every wallpaper;
 `wallpaper-picker --music-source` prints the music source for the current wallpaper;
-`wallpaper-picker --moods` lists the mood picked for every wallpaper.
+`wallpaper-picker --analyse` analyses new wallpapers (the picker runs this in the background).
 """
 import colorsys
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Property, Qt, QUrl, Slot
+from PySide6.QtCore import QObject, Property, QProcess, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QGuiApplication, QImage
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -24,25 +30,50 @@ APPLETSRC = Path.home() / ".config/plasma-org.kde.plasma.desktop-appletsrc"
 THEMES = Path.home() / ".config/wallpaper-picker/themes.json"
 MUSIC_DIR = Path.home() / "Music/Wallpapers"
 MOOD_DIR = Path.home() / "Music/Moods"
-MUSIC_STATE = Path.home() / ".cache/wallpaper-picker/music-source"
+CACHE = Path.home() / ".cache/wallpaper-picker"
+MUSIC_STATE = CACHE / "music-source"
+MOOD_CACHE = CACHE / "moods.json"
+SCRIPT = Path(__file__).resolve()
 BOOT_MUSIC = Path.home() / ".local/bin/boot-music.sh"
+SMART_PYTHON = Path.home() / ".local/share/wallpaper-picker-smart/venv/bin/python"
+CLASSIFY = SCRIPT.parent / "smart/classify.py"
+SMART_MIN_CONF = 0.5  # below this, smart mode falls back to the colour mood
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif", ".jxl"}
 AUDIO_EXT = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".wav"}
 SOMA = "https://ice1.somafm.com/%s-128-mp3"
+SOMA_NAMES = {"fluid": "Fluid", "vaporwaves": "Vaporwaves", "deepspaceone": "Deep Space One",
+              "darkzone": "Dark Zone", "groovesalad": "Groove Salad", "gsclassic": "Groove Salad Classic",
+              "lush": "Lush", "dronezone": "Drone Zone"}
 DEFAULT_THEMES = {
     "folder": "~/Pictures/Wallpapers",
-    "_comment": "folder: where wallpapers are listed from. Per-wallpaper overrides keyed by file name: accent (\"auto\" or \"#e9643a\"), "
-                "mood (one of \"moods\"), or music (stream URL, file or folder). Music order: that "
-                "wallpaper's music, ~/Music/Wallpapers/<name>/, ~/Music/Moods/<mood>/, then the mood's stream.",
+    "mode": "colour",
+    "_comment": "folder: where wallpapers are listed from. mode: \"colour\" or \"smart\" (Tab in the picker). "
+                "moods: each mood's music and, for smart mode, descriptions of images that fit it. "
+                "Per-wallpaper overrides keyed by file name: accent (\"auto\" or \"#e9643a\"), mood (M in the "
+                "picker), or music (stream URL, file or folder). Music order: that wallpaper's music, "
+                "~/Music/Wallpapers/<name>/, ~/Music/Moods/<mood>/, then the mood's music.",
     "default": {"accent": "auto"},
     "moods": {
-        "warm": SOMA % "fluid",           # orange/red/yellow -> lofi / instrumental hip-hop
-        "city": SOMA % "vaporwaves",      # dark with neon or bright lights -> night-city synth
-        "space": SOMA % "deepspaceone",   # dark blue/purple -> space ambient
-        "dark": SOMA % "darkzone",        # dark otherwise -> dark ambient
-        "cool": SOMA % "groovesalad",     # blue/cyan -> chill downtempo
-        "nature": SOMA % "gsclassic",     # green -> classic chill
-        "dreamy": SOMA % "lush",          # pastel or pink -> soft vocals
-        "muted": SOMA % "dronezone",      # grey / colourless -> drone
+        "warm": {"music": SOMA % "fluid",  # lofi / instrumental hip-hop
+                 "prompts": ["a cozy anime scene", "a lofi illustration of a quiet street", "autumn leaves",
+                             "a warm golden sunset", "a cozy cafe"]},
+        "city": {"music": SOMA % "vaporwaves",
+                 "prompts": ["a city at night with neon lights", "a cyberpunk city",
+                             "skyscrapers lit up at night", "a city skyline"]},
+        "space": {"music": SOMA % "deepspaceone",
+                  "prompts": ["outer space", "a galaxy full of stars", "the milky way", "a starry night sky",
+                              "a planet in space", "a nebula"]},
+        "dark": {"music": SOMA % "darkzone",
+                 "prompts": ["a dark and moody scene", "a gloomy foggy landscape", "a dark gothic scene"]},
+        "cool": {"music": SOMA % "groovesalad",
+                 "prompts": ["a tropical beach with turquoise water", "the calm ocean", "a peaceful lake",
+                             "a clear blue sky"]},
+        "nature": {"music": SOMA % "gsclassic",
+                   "prompts": ["a green forest", "snowy mountains", "a lush green meadow", "a waterfall in the wild"]},
+        "dreamy": {"music": SOMA % "lush",
+                   "prompts": ["soft pastel colors", "a dreamy sky with pink clouds", "a pastel sunset over hills"]},
+        "muted": {"music": SOMA % "dronezone",
+                  "prompts": ["a black and white photo", "minimalist grey architecture", "a foggy monochrome scene"]},
     },
 }
 
@@ -63,6 +94,99 @@ def current_wallpaper():
 
 
 class Backend(QObject):
+    changed = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self._revision = 0
+        self._status = ""
+        self._cache_mtime = 0
+        self.cache = load_mood_cache()
+        self.job = QProcess(self)
+        self.job.finished.connect(self._job_finished)
+        self.poll = QTimer(self, interval=1000)
+        self.poll.timeout.connect(self._reload_cache)
+        self._start_analysis()
+
+    def _start_analysis(self):
+        todo = [p for p in wallpapers() if self.cache.get(p, {}).get("stamp") != stamp(p)]
+        if todo:
+            self._set_status(f"Analysing {len(todo)} new wallpaper{'s' * (len(todo) > 1)}…")
+        self.job.start(str(SCRIPT), [str(FOLDER), "--analyse"])
+        self.poll.start()
+
+    def _job_finished(self):
+        self.poll.stop()
+        self._reload_cache(force=True)
+        if self._status.startswith("Analysing"):
+            self._set_status("")
+
+    def _reload_cache(self, force=False):
+        try:
+            mtime = MOOD_CACHE.stat().st_mtime_ns
+        except OSError:
+            return
+        if force or mtime != self._cache_mtime:
+            self._cache_mtime = mtime
+            self.cache = load_mood_cache()
+            self._bump()
+
+    def _bump(self):
+        self._revision += 1
+        self.changed.emit()
+
+    def _set_status(self, text):
+        self._status = text
+        self._bump()
+
+    @Property(int, notify=changed)
+    def revision(self):
+        return self._revision
+
+    @Property(str, notify=changed)
+    def status(self):
+        return self._status
+
+    @Property(str, notify=changed)
+    def mode(self):
+        return current_mode()
+
+    @Slot()
+    def toggleMode(self):
+        if current_mode() == "colour" and not smart_installed():
+            self._set_status("Smart mode isn't installed: run install.sh --smart")
+            return
+        themes = load_themes()
+        themes["mode"] = "colour" if current_mode() == "smart" else "smart"
+        save_themes(themes)
+        self._set_status("")
+
+    @Slot(str, result=str)
+    def label(self, path):
+        mood, how = mood_for(path, cache=self.cache, allow_analysis=False)
+        if mood is None:
+            return "analysing…"
+        suffix = {"set": " (set)", "colour": " (colour)" if current_mode() == "smart" else ""}.get(how, "")
+        return f"{mood}{suffix} · {station_name(music_source(path, mood=mood))}"
+
+    @Slot(str)
+    def cycleMood(self, path):
+        themes = load_themes()
+        entry = themes.get(Path(path).name, {})
+        options = ["auto"] + list(mood_table())
+        current = entry.get("mood", "auto")
+        nxt = options[(options.index(current) + 1) % len(options)] if current in options else "auto"
+        if nxt == "auto":
+            entry.pop("mood", None)
+        else:
+            entry["mood"] = nxt
+        if entry:
+            themes[Path(path).name] = entry
+        else:
+            themes.pop(Path(path).name, None)
+        save_themes(themes)
+        self._bump()
+
     @Property(str, constant=True)
     def folderPath(self):
         return str(FOLDER)
@@ -83,7 +207,9 @@ class Backend(QObject):
         set_lockscreen(path)
         theme = theme_for(path)
         set_accent(theme.get("accent", "auto"), path)
-        set_music(music_source(path, theme))
+        # Music may need a moment of analysis, so do it after the picker has closed.
+        subprocess.Popen([str(SCRIPT), "--set-music", path], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
 
 
 def load_themes():
@@ -96,8 +222,115 @@ def load_themes():
         return DEFAULT_THEMES
 
 
+def save_themes(themes):
+    tmp = THEMES.with_suffix(".tmp")
+    tmp.write_text(json.dumps(themes, indent=2) + "\n")
+    tmp.replace(THEMES)
+
+
 FOLDER = Path(sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-")
               else load_themes().get("folder", DEFAULT_THEMES["folder"])).expanduser()
+
+
+def wallpapers():
+    return sorted(str(f) for f in FOLDER.iterdir() if f.suffix.lower() in IMAGE_EXT) if FOLDER.is_dir() else []
+
+
+def current_mode():
+    return "smart" if load_themes().get("mode") == "smart" else "colour"
+
+
+def smart_installed():
+    return SMART_PYTHON.exists() and CLASSIFY.exists()
+
+
+def mood_table():
+    """{mood: {"music": ..., "prompts": [...]}}; a user entry may be just a music string."""
+    table = {m: dict(v) for m, v in DEFAULT_THEMES["moods"].items()}
+    for mood, value in load_themes().get("moods", {}).items():
+        if isinstance(value, str):
+            value = {"music": value}
+        table[mood] = {**table.get(mood, {"music": SOMA % "dronezone", "prompts": []}), **value}
+    return table
+
+
+def stamp(path):
+    try:
+        st = os.stat(path)
+    except OSError:
+        return ""
+    return f"{st.st_mtime_ns}:{st.st_size}"
+
+
+def load_mood_cache():
+    try:
+        return json.loads(MOOD_CACHE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_mood_cache(cache):
+    CACHE.mkdir(parents=True, exist_ok=True)
+    tmp = MOOD_CACHE.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(cache))
+    tmp.replace(MOOD_CACHE)
+
+
+def analyse(paths):
+    """Work out and cache colour (and, if installed, smart) moods for these images."""
+    cache = load_mood_cache()
+    for path in paths:
+        entry = cache.get(path, {})
+        if entry.get("stamp") != stamp(path):
+            cache[path] = {"stamp": stamp(path), "colour": wallpaper_mood(path)}
+    cache = {p: v for p, v in cache.items() if os.path.isfile(p)}
+    save_mood_cache(cache)
+    if not smart_installed():
+        return cache
+    prompts = {m: v.get("prompts", []) for m, v in mood_table().items()}
+    prompt_key = hashlib.sha1(json.dumps(prompts, sort_keys=True).encode()).hexdigest()[:12]
+    todo = [p for p in paths if cache[p].get("smart", {}).get("key") != prompt_key]
+    if not todo:
+        return cache
+    job = {"images": todo, "moods": prompts, "cache": str(CACHE / "clip-embeddings.json"),
+           "models": str(CACHE / "models")}
+    try:
+        out = subprocess.run([str(SMART_PYTHON), "-I", str(CLASSIFY)], input=json.dumps(job),
+                             capture_output=True, text=True, timeout=600).stdout
+        results = json.loads(out or "{}")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return cache
+    cache = load_mood_cache()  # another run may have written meanwhile
+    for path, result in results.items():
+        if path in cache:
+            cache[path]["smart"] = {**result, "key": prompt_key}
+    save_mood_cache(cache)
+    return cache
+
+
+def mood_for(path, theme=None, cache=None, allow_analysis=True):
+    """(mood, how) where how is "set", "smart" or "colour"; (None, None) if not analysed yet."""
+    theme = theme or theme_for(path)
+    if theme.get("mood"):
+        return theme["mood"], "set"
+    if cache is None:
+        cache = load_mood_cache()
+    entry = cache.get(path, {})
+    if entry.get("stamp") != stamp(path):
+        if not allow_analysis:
+            return None, None
+        entry = analyse([path]).get(path, {})
+    smart = entry.get("smart")
+    if current_mode() == "smart" and smart and smart["conf"] >= SMART_MIN_CONF:
+        return smart["mood"], "smart"
+    return entry.get("colour") or wallpaper_mood(path), "colour"
+
+
+def station_name(source):
+    match = re.search(r"somafm\.com/([a-z0-9]+?)-\d+-mp3", source)
+    if match:
+        return SOMA_NAMES.get(match.group(1), match.group(1))
+    return "your music" if os.path.isdir(source) else Path(source).name
 
 
 def theme_for(path):
@@ -179,17 +412,17 @@ def has_audio(folder):
     return folder.is_dir() and any(f.suffix.lower() in AUDIO_EXT for f in folder.iterdir())
 
 
-def music_source(path, theme=None):
+def music_source(path, theme=None, mood=None):
     theme = theme or theme_for(path)
     if "music" in theme:
         return os.path.expanduser(theme["music"])
     if has_audio(MUSIC_DIR / Path(path).stem):
         return str(MUSIC_DIR / Path(path).stem)
-    mood = theme.get("mood") or wallpaper_mood(path)
+    mood = mood or mood_for(path, theme)[0]
     if has_audio(MOOD_DIR / mood):
         return str(MOOD_DIR / mood)
-    moods = {**DEFAULT_THEMES["moods"], **load_themes().get("moods", {})}
-    return os.path.expanduser(moods.get(mood, moods["muted"]))
+    moods = mood_table()
+    return os.path.expanduser(moods.get(mood, moods["muted"])["music"])
 
 
 def set_music(source):
@@ -201,7 +434,7 @@ def set_music(source):
         pass
     if subprocess.run(["pkill", "-f", "^/usr/bin/vlc -I dummy --control dbus"]).returncode != 0:
         return  # music was stopped by the user; leave it off
-    subprocess.Popen([str(BOOT_MUSIC), "--now"], stdout=subprocess.DEVNULL,
+    subprocess.Popen([str(BOOT_MUSIC), "--now", source], stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
@@ -228,10 +461,20 @@ def main():
     if "--music-source" in sys.argv:
         print(music_source(current_wallpaper()))
         return
+    if "--set-music" in sys.argv:
+        set_music(music_source(sys.argv[sys.argv.index("--set-music") + 1]))
+        return
+    if "--analyse" in sys.argv:
+        analyse(wallpapers())
+        return
     if "--moods" in sys.argv:
-        for f in sorted(FOLDER.iterdir()):
-            if f.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".avif", ".jxl"}:
-                print(f"{wallpaper_mood(str(f)):8} {f.name}")
+        cache = analyse(wallpapers())
+        print(f"mode: {current_mode()}" + ("" if smart_installed() else " (smart not installed)"))
+        for path in wallpapers():
+            mood, how = mood_for(path, cache=cache)
+            smart = cache.get(path, {}).get("smart")
+            conf = f"{smart['conf']:.2f}" if smart and how != "set" else "    "
+            print(f"{mood:8} {how:6} {conf}  {Path(path).name}")
         return
     FOLDER.mkdir(parents=True, exist_ok=True)
     app = QGuiApplication(sys.argv)

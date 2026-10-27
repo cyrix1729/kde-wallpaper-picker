@@ -1,8 +1,12 @@
 #!/bin/bash
 # Plays the music for the current wallpaper (see wallpaper-picker), falling back to SomaFM Drone Zone.
-# --now skips the startup delay (used when the picker switches tracks).
-[ "$1" = "--now" ] || sleep 5  # let audio and the network come up
-SRC="$("$HOME/.local/bin/wallpaper-picker" --music-source 2>/dev/null)"
+# --now [source] skips the startup delay and plays that source (used when the picker switches tracks).
+if [ "$1" = "--now" ]; then
+    SRC="$2"
+else
+    sleep 5  # let audio and the network come up
+fi
+[ -n "$SRC" ] || SRC="$("$HOME/.local/bin/wallpaper-picker" --music-source 2>/dev/null)"
 [ -n "$SRC" ] || SRC=https://ice1.somafm.com/dronezone-128-mp3
 mkdir -p "$HOME/.cache/wallpaper-picker"
 printf '%s' "$SRC" > "$HOME/.cache/wallpaper-picker/music-source"

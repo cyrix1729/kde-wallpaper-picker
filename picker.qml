@@ -1,5 +1,6 @@
 // Cover-flow wallpaper picker, modelled on 43PR's hyprquickpaper.
 // Hover or A/D/arrows to move, click/Enter/Space to apply, Esc/W or click outside to close.
+// Tab switches music mode (colour/smart), M cycles the selected wallpaper's mood.
 import QtQuick
 import QtQuick.Window
 import QtQuick.Effects
@@ -51,6 +52,26 @@ Window {
             text: "Add images to " + backend.folderPath
             color: "#cccccc"; font.pixelSize: 14 * main.ui
             anchors.horizontalCenter: parent.horizontalCenter
+        }
+    }
+
+    Column {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 24 * main.ui
+        spacing: 4 * main.ui
+        Text {
+            anchors.right: parent.right
+            text: "music: " + backend.mode + "   [tab] switch   [m] change mood"
+            color: "#ffffff"; opacity: 0.8
+            font.family: "monospace"; font.pixelSize: 13 * main.ui
+        }
+        Text {
+            anchors.right: parent.right
+            visible: text !== ""
+            text: backend.status
+            color: "#ffffff"; opacity: 0.6
+            font.family: "monospace"; font.pixelSize: 12 * main.ui
         }
     }
 
@@ -167,6 +188,22 @@ Window {
                     asynchronous: true
                 }
 
+                Text {
+                    anchors.top: parent.bottom
+                    anchors.topMargin: 8 * main.ui
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: list.tileWidth
+                    horizontalAlignment: Text.AlignHCenter
+                    elide: Text.ElideRight
+                    maximumLineCount: 2
+                    visible: tile.active || tile.scaleFactor > 0.6
+                    text: backend.revision, backend.label(filePath).replace(" · ", "\n")
+                    color: "#ffffff"
+                    opacity: tile.active ? 0.95 : 0.6
+                    font.family: "monospace"
+                    font.pixelSize: 12 * main.ui
+                }
+
                 Rectangle {
                     anchors.fill: parent
                     visible: tile.active
@@ -200,6 +237,9 @@ Window {
             case Qt.Key_Return: case Qt.Key_Enter: case Qt.Key_Space:
                 if (count > 0) activateCurrent(); break
             case Qt.Key_W: case Qt.Key_Escape: Qt.quit(); break
+            case Qt.Key_Tab: backend.toggleMode(); break
+            case Qt.Key_M:
+                if (count > 0) backend.cycleMood(folderModel.get(selectedIndex, "filePath")); break
             default: return
             }
             event.accepted = true
