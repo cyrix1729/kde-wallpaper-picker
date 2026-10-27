@@ -1,6 +1,6 @@
-# Wallpaper Picker
+# Wallpaper Picker and music changer
 
-A full-screen cover-flow wallpaper picker for KDE Plasma. Applying a wallpaper also sets:
+A full-screen cover-flow wallpaper picker for KDE Plasma plays music to match wallpaper, based on color profile of image. Applying a wallpaper also sets:
 
 - the **lock screen** to the same image
 - the **accent colour** to the image's main vivid colour
@@ -22,12 +22,6 @@ Needs Plasma 6, PySide6 (`sudo dnf install python3-pyside6`) and VLC (`sudo dnf 
 ## Usage
 
 Open it with **Meta+Shift+W**, or launch "Wallpaper Picker" from the app menu, or run `wallpaper-picker` in a terminal.
-
-| Key / mouse                     | Action                  |
-|---------------------------------|-------------------------|
-| Hover, A/D, ←/→                 | Move through wallpapers |
-| Click, Enter, Space             | Apply and close         |
-| Esc, W, click outside           | Close without changing  |
 
 To add wallpapers, drop images (jpg, png, webp, gif, bmp, avif, jxl) into `~/Pictures/Wallpapers`.
 They're picked up the next time the picker opens. Nothing else needs to run.
