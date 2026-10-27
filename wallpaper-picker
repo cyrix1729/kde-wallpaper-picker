@@ -43,7 +43,8 @@ AUDIO_EXT = {".mp3", ".flac", ".ogg", ".opus", ".m4a", ".wav"}
 SOMA = "https://ice1.somafm.com/%s-128-mp3"
 SOMA_NAMES = {"fluid": "Fluid", "vaporwaves": "Vaporwaves", "deepspaceone": "Deep Space One",
               "darkzone": "Dark Zone", "groovesalad": "Groove Salad", "gsclassic": "Groove Salad Classic",
-              "lush": "Lush", "dronezone": "Drone Zone"}
+              "lush": "Lush", "dronezone": "Drone Zone", "bossa": "Bossa Beyond",
+              "secretagent": "Secret Agent", "synphaera": "Synphaera", "folkfwd": "Folk Forward"}
 DEFAULT_THEMES = {
     "folder": "~/Pictures/Wallpapers",
     "mode": "colour",
@@ -66,8 +67,19 @@ DEFAULT_THEMES = {
         "dark": {"music": SOMA % "darkzone",
                  "prompts": ["a dark and moody scene", "a gloomy foggy landscape", "a dark gothic scene"]},
         "cool": {"music": SOMA % "groovesalad",
-                 "prompts": ["a tropical beach with turquoise water", "the calm ocean", "a peaceful lake",
-                             "a clear blue sky"]},
+                 "prompts": ["the calm ocean", "a peaceful lake", "a clear blue sky", "waves on a rocky coast"]},
+        # The moods below only come from smart mode; colour mode can't tell them apart.
+        "tropical": {"music": SOMA % "bossa",  # bossa nova
+                     "prompts": ["a tropical beach with turquoise water", "palm trees on a sunny beach",
+                                 "a tropical island", "white sand and clear shallow sea"]},
+        "retro": {"music": SOMA % "secretagent",  # 60s spy lounge
+                  "prompts": ["a vintage photograph", "a retro 1960s scene", "an old film still",
+                              "a classic car on an old street"]},
+        "abstract": {"music": SOMA % "synphaera",  # ambient electronic
+                     "prompts": ["abstract colorful shapes", "geometric abstract art", "a smooth abstract wave pattern"]},
+        "countryside": {"music": SOMA % "folkfwd",  # indie folk
+                        "prompts": ["farmland and rolling fields", "a wooden cabin in the countryside",
+                                    "an empty desert road", "a quiet country village"]},
         "nature": {"music": SOMA % "gsclassic",
                    "prompts": ["a green forest", "snowy mountains", "a lush green meadow", "a waterfall in the wild"]},
         "dreamy": {"music": SOMA % "lush",

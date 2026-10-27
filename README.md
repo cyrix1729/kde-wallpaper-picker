@@ -72,9 +72,15 @@ Each wallpaper gets one of these moods, and each mood has its own music:
 | `space`  | dark blue / purple / magenta        | space, galaxies, starry skies        | Deep Space One       |
 | `nature` | green, including dark forests       | forests, mountains, meadows          | Groove Salad Classic |
 | `dark`   | dark, any other colour              | gloomy, moody, gothic                | Dark Zone            |
-| `cool`   | blue / cyan                         | beaches, ocean, lakes, blue sky      | Groove Salad         |
+| `cool`   | blue / cyan                         | calm ocean, lakes, blue sky          | Groove Salad         |
 | `dreamy` | pastel or pink                      | pastel skies, pink clouds            | Lush                 |
 | `muted`  | grey / colourless                   | black and white, grey architecture   | Drone Zone           |
+| `tropical` | (smart only)                      | tropical beaches, palm trees, islands | Bossa Beyond        |
+| `retro`  | (smart only)                        | vintage photos, 60s scenes, old film | Secret Agent         |
+| `abstract` | (smart only)                      | abstract shapes, geometric art       | Synphaera            |
+| `countryside` | (smart only)                   | fields, cabins, desert roads, villages | Folk Forward       |
+
+Colour mode only knows the first eight; smart mode can tell all twelve apart.
 
 There are two ways to pick the mood:
 
