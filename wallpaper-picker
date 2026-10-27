@@ -205,14 +205,13 @@ def set_music(source):
                      stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-def active_screen(app):
-    """The screen KWin considers active (Wayland hides the cursor position from apps)."""
+def main_screen(app):
+    """KDE's primary monitor (priority 1). Qt's primaryScreen() ignores KDE's choice on Wayland."""
     try:
-        out = subprocess.run(["gdbus", "call", "--session", "-d", "org.kde.KWin", "-o", "/KWin",
-                              "-m", "org.kde.KWin.activeOutputName"],
-                             capture_output=True, text=True, timeout=2).stdout
-        name = out.strip().strip("(),'")
-    except (OSError, subprocess.SubprocessError):
+        out = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=3).stdout
+        outputs = [o for o in json.loads(out)["outputs"] if o.get("enabled")]
+        name = min(outputs, key=lambda o: o.get("priority") or 99)["name"]
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError):
         name = ""
     return next((s for s in app.screens() if s.name() == name), app.primaryScreen())
 
@@ -244,7 +243,7 @@ def main():
     if not engine.rootObjects():
         sys.exit(1)
     window = engine.rootObjects()[0]
-    screen = active_screen(app)
+    screen = main_screen(app)
     window.setScreen(screen)
     window.setGeometry(screen.geometry())
     window.showFullScreen()

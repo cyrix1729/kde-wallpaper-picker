@@ -19,7 +19,7 @@ Window {
 
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
     color: "transparent"
-    visibility: Window.FullScreen
+    visible: false  // shown fullscreen by wallpaper-picker once it has picked the screen
 
     FolderListModel {
         id: folderModel
