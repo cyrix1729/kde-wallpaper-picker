@@ -1,12 +1,23 @@
 # Wallpaper Picker and music changer
 
+**Pick a wallpaper and your whole desktop follows: accent colour, lock screen, and music that fits the picture.**
+Lofi for an anime street, bossa nova for a tropical beach, synthwave for a neon city.
+
 ![The picker: mood and station under each wallpaper, Tab switching colour/smart mode, M overriding a mood](docs/demo.gif)
 
-A full-screen cover-flow wallpaper picker for KDE Plasma plays music to match wallpaper, based on color profile of image. Applying a wallpaper also sets:
+A full-screen cover-flow wallpaper picker for KDE Plasma that plays music to match your wallpaper.
 
-- the **lock screen** to the same image
-- the **accent colour** to the image's main vivid colour
-- the **music** to an internet radio station that matches the image's mood
+## Features
+
+- **Cover-flow picker** on a keyboard shortcut, opening on your main monitor
+- **One click sets everything**: wallpaper on every screen, the lock screen, and an accent colour taken from the image
+- **Music that matches the mood**, from free [SomaFM](https://somafm.com) internet radio or your own music folders
+- **Two ways to read the mood**:
+  - **Colour mode**: instant, from the image's colours
+  - **Smart mode**: [CLIP](https://github.com/openai/CLIP) image recognition, running offline on your CPU, that knows a beach from a lake
+- **Easy to correct**: see each wallpaper's mood before applying it, and press **M** to change it
+- **Customisable**: add your own moods with a few plain-English descriptions and a station
+- **ASCII-art boot splash** (optional extra)
 
 ## Install
 
