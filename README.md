@@ -179,12 +179,3 @@ Changes take effect the next time you open the picker or apply a wallpaper.
 
 The installed paths are symlinks into this repo, except the two `.desktop` files, which `install.sh`
 generates from the templates here.
-
-## Boot splash (separate)
-
-An ASCII-art boot screen theme, `sphinx-ascii`, lives in `~/.local/share/plymouth-sphinx/`.
-It isn't linked to the picker, and its orange colour is fixed when it's built.
-
-- Install: `sudo ~/.local/share/plymouth-sphinx/install.sh`
-- Change the art or text: edit `build-theme.py`, run it, then install again
-- Undo: `sudo plymouth-set-default-theme bgrt -R`

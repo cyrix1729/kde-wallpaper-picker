@@ -14,7 +14,6 @@ link() {  # link <target in repo> <path to create>
 link "$REPO/wallpaper-picker" "$HOME/.local/bin/wallpaper-picker"
 link "$REPO/boot-music.sh" "$HOME/.local/bin/boot-music.sh"
 link "$REPO" "$HOME/.local/share/wallpaper-picker"
-link "$REPO/plymouth" "$HOME/.local/share/plymouth-sphinx"
 
 mkdir -p "$HOME/.local/share/applications" "$HOME/.config/autostart" "$HOME/Pictures/Wallpapers"
 sed "s|@HOME@|$HOME|g" "$REPO/wallpaper-picker.desktop" > "$HOME/.local/share/applications/wallpaper-picker.desktop"
